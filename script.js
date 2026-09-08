@@ -23,10 +23,8 @@
     { id: "sample5", src: "assets/images/sample5.svg", name: "宇宙" },
   ];
 
-  // アップロード画像（現時点ではメモリ上のみで管理。
-  // TODO: 次のステップで IndexedDB による永続化に置き換える）
-  let uploadedImages = []; // { id, src(dataURL), name }
-  let uploadIdCounter = 1;
+  // アップロード画像（IndexedDBに永続化。起動時にDBから読み込んでこの配列にキャッシュする）
+  let uploadedImages = []; // { id, src(dataURL), name, createdAt }
 
   /* ============================================================
      1. 状態管理
@@ -175,8 +173,105 @@
   }
 
   /* ============================================================
-     7. アップロード画像の管理（現状はメモリ上のみ）
+     7. アップロード画像の管理（IndexedDBに永続化）
      ============================================================ */
+
+  const DB_NAME = "jigsaw_puzzle_db";
+  const DB_VERSION = 1;
+  const DB_STORE = "images";
+
+  const UPLOAD_MAX_DIM = 800;      // 保存前にリサイズする長辺の目安(px)
+  const UPLOAD_JPEG_QUALITY = 0.85;
+
+  let dbPromise = null;
+
+  function openDB() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error("このブラウザはIndexedDBに対応していません")); return; }
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) {
+          db.createObjectStore(DB_STORE, { keyPath: "id" });
+        }
+      };
+      req.onsuccess = (e) => resolve(e.target.result);
+      req.onerror = (e) => reject(e.target.error);
+    });
+    return dbPromise;
+  }
+
+  function dbPutImage(record) {
+    return openDB().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readwrite");
+      tx.objectStore(DB_STORE).put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    }));
+  }
+
+  function dbGetAllImages() {
+    return openDB().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readonly");
+      const req = tx.objectStore(DB_STORE).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    }));
+  }
+
+  function dbDeleteImage(id) {
+    return openDB().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, "readwrite");
+      tx.objectStore(DB_STORE).delete(id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    }));
+  }
+
+  // 起動時：IndexedDBから既存のアップロード画像を読み込む
+  function loadUploadedImagesFromDB() {
+    dbGetAllImages()
+      .then((records) => {
+        records.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        uploadedImages = records;
+      })
+      .catch((err) => {
+        console.warn("アップロード画像の読み込みに失敗しました（このブラウザは非対応か、プライベートモードの可能性があります）", err);
+        uploadedImages = [];
+      });
+  }
+
+  // 選択されたファイルを、長辺 UPLOAD_MAX_DIM px 程度にリサイズしてdataURLへ変換
+  function resizeImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error || new Error("ファイルの読み込みに失敗しました"));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("画像として読み込めませんでした"));
+        img.onload = () => {
+          let w = img.naturalWidth || img.width;
+          let h = img.naturalHeight || img.height;
+          if (Math.max(w, h) > UPLOAD_MAX_DIM) {
+            const s = UPLOAD_MAX_DIM / Math.max(w, h);
+            w = Math.round(w * s);
+            h = Math.round(h * s);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          const cctx = canvas.getContext("2d");
+          // 透過PNGでも黒くならないよう、白背景を敷いてから描画する
+          cctx.fillStyle = "#ffffff";
+          cctx.fillRect(0, 0, w, h);
+          cctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", UPLOAD_JPEG_QUALITY));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
   function renderUploadedGrid() {
     el.uploadedGrid.innerHTML = "";
@@ -194,8 +289,10 @@
       `;
       cell.querySelector(".thumb-delete").addEventListener("click", (e) => {
         e.stopPropagation();
+        // 先にUIから消し、DB側の削除はバックグラウンドで行う（失敗しても体感を止めない）
         uploadedImages = uploadedImages.filter((u) => u.id !== img.id);
         renderUploadedGrid();
+        dbDeleteImage(img.id).catch((err) => console.warn("削除に失敗しました", err));
       });
       el.uploadedGrid.appendChild(cell);
     });
@@ -203,18 +300,29 @@
 
   function handleFileSelected(file) {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      // TODO: 次のステップでリサイズ（長辺800px程度）＆IndexedDB保存に置き換える
-      const dataUrl = e.target.result;
-      uploadedImages.push({
-        id: "upload" + (uploadIdCounter++),
-        src: dataUrl,
-        name: "マイ画像" + uploadedImages.length,
+    if (!file.type || file.type.indexOf("image/") !== 0) {
+      alert("画像ファイルを選んでください");
+      return;
+    }
+    resizeImageFile(file)
+      .then((dataUrl) => {
+        const record = {
+          id: "upload_" + Date.now() + "_" + Math.floor(Math.random() * 1e6),
+          src: dataUrl,
+          name: "マイ画像" + (uploadedImages.length + 1),
+          createdAt: Date.now(),
+        };
+        // 先にUIへ反映し、DBへの保存はバックグラウンドで行う
+        uploadedImages.push(record);
+        renderUploadedGrid();
+        dbPutImage(record).catch((err) => {
+          console.warn("画像を保存できませんでした（今回のセッション内でのみ利用可能です）", err);
+        });
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("画像の読み込みに失敗しました");
       });
-      renderUploadedGrid();
-    };
-    reader.readAsDataURL(file);
   }
 
   /* ============================================================
@@ -754,7 +862,7 @@
   }
 
   /* ============================================================
-     10. クリア画面
+     12. クリア画面
      ============================================================ */
 
   function goToClear() {
@@ -773,7 +881,7 @@
   }
 
   /* ============================================================
-     11. イベント登録：画面遷移
+     13. イベント登録：画面遷移
      ============================================================ */
 
   // タイトル → レベル選択
@@ -837,7 +945,7 @@
   });
 
   /* ============================================================
-     12. 画像アップロード関連
+     14. 画像アップロード関連
      ============================================================ */
 
   $("btn-open-upload").addEventListener("click", () => showModal(modals.uploadMenu));
@@ -861,9 +969,10 @@
   $("btn-uploaded-close").addEventListener("click", () => hideModal(modals.uploadList));
 
   /* ============================================================
-     13. 初期化
+     15. 初期化
      ============================================================ */
 
+  loadUploadedImagesFromDB();
   renderBestTimes();
   showScreen("title");
 })();

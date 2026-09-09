@@ -18,6 +18,7 @@
 
       <button id="btn-start" class="btn btn-primary btn-lg">はじめる</button>
       <button id="btn-open-upload" class="btn btn-secondary">画像を追加</button>
+      <button id="btn-open-settings" class="btn btn-ghost">⚙️ 設定</button>
 
       <div class="best-times-box">
         <div class="best-times-title">ベストタイム</div>
@@ -66,6 +67,9 @@
     </div>
 
     <canvas id="game-canvas"></canvas>
+    <button id="guide-thumbnail" class="guide-thumbnail hidden" aria-label="完成図を拡大">
+      <img id="guide-thumbnail-image" alt="完成図">
+    </button>
   </div>
 
   <!-- ============ クリア画面 ============ -->
@@ -86,6 +90,31 @@
       <h2 class="modal-title">ポーズ中</h2>
       <button id="btn-resume" class="btn btn-primary btn-lg">つづける</button>
       <button id="btn-pause-title" class="btn btn-secondary">タイトルへもどる</button>
+    </div>
+  </div>
+
+  <!-- ============ 完成図プレビューモーダル ============ -->
+  <div id="modal-guide-preview" class="modal hidden">
+    <div class="guide-preview-card">
+      <img id="guide-preview-image" alt="完成図">
+      <button id="btn-guide-preview-close" class="btn btn-secondary">とじる</button>
+    </div>
+  </div>
+
+  <!-- ============ 設定モーダル ============ -->
+  <div id="modal-settings" class="modal hidden">
+    <div class="modal-card settings-card">
+      <h2 class="modal-title">⚙️ 設定</h2>
+      <div class="settings-section">
+        <div class="settings-label">ガイド</div>
+        <button id="setting-guide-picture" class="setting-toggle" type="button"><span>ガイドピクチャー</span><strong>ON</strong></button>
+        <button id="setting-guide-line" class="setting-toggle" type="button"><span>ガイドライン</span><strong>ON</strong></button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">サンプル画像</div>
+        <button id="btn-reset-samples" class="btn btn-secondary">サンプル画像を初期状態に戻す</button>
+      </div>
+      <button id="btn-settings-close" class="btn btn-ghost">とじる</button>
     </div>
   </div>
 

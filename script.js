@@ -94,19 +94,6 @@
      3. 画面切り替え
      ============================================================ */
 
-  // 初回表示時のモバイルChromeでViewport高さが確定する前のレイアウトずれを防止
-  function syncViewportHeight() {
-    const vv = window.visualViewport;
-    const h = vv && vv.height ? vv.height : window.innerHeight;
-    if (h > 0) document.documentElement.style.setProperty("--app-height", Math.round(h) + "px");
-  }
-  syncViewportHeight();
-  window.addEventListener("load", syncViewportHeight);
-  window.addEventListener("resize", syncViewportHeight);
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", syncViewportHeight);
-  }
-
   function showScreen(name) {
     Object.values(screens).forEach((s) => s.classList.add("hidden"));
     screens[name].classList.remove("hidden");
@@ -716,7 +703,8 @@
   }
 
   function resizeGameCanvas() {
-    const rect = el.gameCanvas.getBoundingClientRect();
+    const stage = el.gameCanvas.parentElement;
+    const rect = stage.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     el.gameCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
     el.gameCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
@@ -724,18 +712,7 @@
     renderGame();
   }
   window.addEventListener("resize", resizeGameCanvas);
-  function scheduleCanvasResize() {
-    requestAnimationFrame(() => {
-      resizeGameCanvas();
-      requestAnimationFrame(resizeGameCanvas);
-    });
-  }
-  window.addEventListener("orientationchange", scheduleCanvasResize);
-  window.addEventListener("pageshow", scheduleCanvasResize);
-  window.addEventListener("load", scheduleCanvasResize);
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", scheduleCanvasResize);
-  }
+  window.addEventListener("orientationchange", resizeGameCanvas);
 
   // 組み立てエリア／トレイエリアの寸法・拡大率を計算
   function getLayout() {

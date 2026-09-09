@@ -94,6 +94,19 @@
      3. 画面切り替え
      ============================================================ */
 
+  // 初回表示時のモバイルChromeでViewport高さが確定する前のレイアウトずれを防止
+  function syncViewportHeight() {
+    const vv = window.visualViewport;
+    const h = vv && vv.height ? vv.height : window.innerHeight;
+    if (h > 0) document.documentElement.style.setProperty("--app-height", Math.round(h) + "px");
+  }
+  syncViewportHeight();
+  window.addEventListener("load", syncViewportHeight);
+  window.addEventListener("resize", syncViewportHeight);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncViewportHeight);
+  }
+
   function showScreen(name) {
     Object.values(screens).forEach((s) => s.classList.add("hidden"));
     screens[name].classList.remove("hidden");

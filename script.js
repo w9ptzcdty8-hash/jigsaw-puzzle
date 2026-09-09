@@ -711,12 +711,18 @@
     renderGame();
   }
   window.addEventListener("resize", resizeGameCanvas);
-  window.addEventListener("orientationchange", () => requestAnimationFrame(() => requestAnimationFrame(resizeGameCanvas)));
-  window.addEventListener("pageshow", () => requestAnimationFrame(() => requestAnimationFrame(resizeGameCanvas)));
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener("resize", () => requestAnimationFrame(resizeGameCanvas));
+  function scheduleCanvasResize() {
+    requestAnimationFrame(() => {
+      resizeGameCanvas();
+      requestAnimationFrame(resizeGameCanvas);
+    });
   }
-  window.addEventListener("orientationchange", () => setTimeout(resizeGameCanvas, 150));
+  window.addEventListener("orientationchange", scheduleCanvasResize);
+  window.addEventListener("pageshow", scheduleCanvasResize);
+  window.addEventListener("load", scheduleCanvasResize);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", scheduleCanvasResize);
+  }
 
   // 組み立てエリア／トレイエリアの寸法・拡大率を計算
   function getLayout() {

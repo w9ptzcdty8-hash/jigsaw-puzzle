@@ -30,9 +30,16 @@
      1. 状態管理
      ============================================================ */
 
+  const SETTINGS_KEYS = {
+    guidePicture: "jigsaw_guide_picture",
+    guideLine: "jigsaw_guide_line",
+    hiddenSamples: "jigsaw_hidden_samples",
+  };
+
   const state = {
     selectedLevel: "EASY",
     currentImage: null,   // { id, src, name }
+    selectedPiece: null,
     startTimestamp: 0,    // ゲーム開始（再開）時刻
     elapsedBeforePause: 0,// ポーズ前までに経過していた時間(ms)
     timerHandle: null,
@@ -58,6 +65,8 @@
     pause: $("modal-pause"),
     uploadMenu: $("modal-upload-menu"),
     uploadList: $("modal-upload-list"),
+    settings: $("modal-settings"),
+    guidePreview: $("modal-guide-preview"),
   };
 
   const el = {
@@ -72,6 +81,11 @@
     clearTime: $("clear-time"),
     clearBestTag: $("clear-best-tag"),
     fileInput: $("file-input"),
+    guideThumbnail: $("guide-thumbnail"),
+    guideThumbnailImage: $("guide-thumbnail-image"),
+    guidePreviewImage: $("guide-preview-image"),
+    settingGuidePicture: $("setting-guide-picture"),
+    settingGuideLine: $("setting-guide-line"),
   };
 
   const ctx = el.gameCanvas.getContext("2d");
@@ -127,7 +141,40 @@
   }
 
   /* ============================================================
-     5. レベル選択画面
+     5. 設定
+     ============================================================ */
+  function getBoolSetting(key, defaultValue) {
+    const v = localStorage.getItem(key);
+    return v === null ? defaultValue : v === "1";
+  }
+  function setBoolSetting(key, value) {
+    try { localStorage.setItem(key, value ? "1" : "0"); } catch (e) {}
+  }
+  function getHiddenSamples() {
+    try {
+      const v = JSON.parse(localStorage.getItem(SETTINGS_KEYS.hiddenSamples) || "[]");
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+  function setHiddenSamples(ids) {
+    try { localStorage.setItem(SETTINGS_KEYS.hiddenSamples, JSON.stringify(ids)); } catch (e) {}
+  }
+  function isSampleVisible(id) { return !getHiddenSamples().includes(id); }
+  function renderSettings() {
+    const gp = getBoolSetting(SETTINGS_KEYS.guidePicture, true);
+    const gl = getBoolSetting(SETTINGS_KEYS.guideLine, true);
+    el.settingGuidePicture.querySelector("strong").textContent = gp ? "ON" : "OFF";
+    el.settingGuideLine.querySelector("strong").textContent = gl ? "ON" : "OFF";
+    el.settingGuidePicture.classList.toggle("off", !gp);
+    el.settingGuideLine.classList.toggle("off", !gl);
+  }
+  function openSettings() {
+    renderSettings();
+    showModal(modals.settings);
+  }
+
+  /* ============================================================
+     6. レベル選択画面
      ============================================================ */
 
   function renderLevelGrid() {
@@ -150,7 +197,8 @@
      ============================================================ */
 
   function getImagePool() {
-    return [...SAMPLE_IMAGES, ...uploadedImages];
+    const samples = SAMPLE_IMAGES.filter((img) => isSampleVisible(img.id));
+    return [...samples, ...uploadedImages];
   }
 
   function pickRandomImage() {
@@ -164,6 +212,21 @@
       const cell = document.createElement("div");
       cell.className = "image-thumb";
       cell.innerHTML = `<img src="${img.src}" alt="${img.name}"><div class="thumb-label">${img.name}</div>`;
+      if (img.id.indexOf("sample") === 0) {
+        const del = document.createElement("button");
+        del.className = "thumb-delete sample-delete";
+        del.type = "button";
+        del.setAttribute("aria-label", "サンプル画像を非表示");
+        del.textContent = "✕";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const ids = getHiddenSamples();
+          if (!ids.includes(img.id)) ids.push(img.id);
+          setHiddenSamples(ids);
+          renderImageSelectGrid();
+        });
+        cell.appendChild(del);
+      }
       cell.addEventListener("click", () => {
         state.currentImage = img;
         startGame();
@@ -566,11 +629,11 @@
     // ふちどり（形をわかりやすくする）
     tracePath();
     pctx.lineWidth = 4;
-    pctx.strokeStyle = "rgba(0,0,0,0.14)";
+    pctx.strokeStyle = "rgba(0,0,0,0.78)";
     pctx.stroke();
     tracePath();
-    pctx.lineWidth = 1.4;
-    pctx.strokeStyle = "rgba(255,255,255,0.9)";
+    pctx.lineWidth = 1.2;
+    pctx.strokeStyle = "rgba(255,255,255,0.65)";
     pctx.stroke();
 
     return c;
@@ -598,6 +661,7 @@
           drawW: canvas.width,
           drawH: canvas.height,
           canvas,
+          points,
           placed: false,
           homeFracX: Math.random(),
           homeFracY: Math.random(),
@@ -685,6 +749,22 @@
     ctx.drawImage(p.canvas, x, y, dw, dh);
   }
 
+  function drawGuidePiece(p, layout) {
+    if (!p.points || p.points.length < 2) return;
+    ctx.save();
+    ctx.beginPath();
+    p.points.forEach((pt, i) => {
+      const x = layout.boardOffsetX + pt.x * layout.scale;
+      const y = layout.boardOffsetY + pt.y * layout.scale;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.strokeStyle = "rgba(70,70,70,0.34)";
+    ctx.lineWidth = Math.max(1, Math.min(2.2, layout.scale * 1.6));
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function renderGame() {
     const layout = getLayout();
     const w = layout.w, h = layout.h;
@@ -695,14 +775,18 @@
     ctx.fillRect(0, 0, w, layout.boardH);
 
     if (puzzle) {
-      // 完成図ヒント（薄く表示）
-      ctx.save();
-      ctx.globalAlpha = 0.32;
-      ctx.drawImage(puzzle.sourceCanvas, layout.boardOffsetX, layout.boardOffsetY, puzzle.srcW * layout.scale, puzzle.srcH * layout.scale);
-      ctx.restore();
+      if (getBoolSetting(SETTINGS_KEYS.guidePicture, true)) {
+        ctx.save();
+        ctx.globalAlpha = 0.32;
+        ctx.drawImage(puzzle.sourceCanvas, layout.boardOffsetX, layout.boardOffsetY, puzzle.srcW * layout.scale, puzzle.srcH * layout.scale);
+        ctx.restore();
+      }
       ctx.strokeStyle = "rgba(107,107,120,0.4)";
       ctx.lineWidth = 2;
       ctx.strokeRect(layout.boardOffsetX, layout.boardOffsetY, puzzle.srcW * layout.scale, puzzle.srcH * layout.scale);
+      if (getBoolSetting(SETTINGS_KEYS.guideLine, true)) {
+        puzzle.pieces.forEach((p) => { if (!p.placed) drawGuidePiece(p, layout); });
+      }
     } else {
       ctx.fillStyle = "rgba(107,107,120,0.7)";
       ctx.font = "15px sans-serif";
@@ -740,6 +824,15 @@
     }
   }
 
+  function updateGuideThumbnail() {
+    if (!state.currentImage) {
+      el.guideThumbnail.classList.add("hidden");
+      return;
+    }
+    el.guideThumbnailImage.src = state.currentImage.src;
+    el.guideThumbnail.classList.remove("hidden");
+  }
+
   function gameLoopTick() {
     renderGame();
     rafId = requestAnimationFrame(gameLoopTick);
@@ -774,30 +867,59 @@
     return null;
   }
 
-  el.gameCanvas.addEventListener("pointerdown", (e) => {
-    if (!puzzle || state.isPaused || !state.isRunning) return;
-    const pos = getCanvasLocalPos(e);
-    const layout = getLayout();
-    if (pos.y < layout.boardH) return; // 盤面上の配置済みピースは動かせない
+  let pointerStartX = 0, pointerStartY = 0;
+  let pointerMoved = false;
 
-    const piece = findPieceAt(pos.x, pos.y, layout);
-    if (!piece) return;
-
+  function beginDraggingPiece(piece, pos, e) {
     const idx = puzzle.pieces.indexOf(piece);
-    puzzle.pieces.splice(idx, 1);
-    puzzle.pieces.push(piece);
-
+    if (idx >= 0) {
+      puzzle.pieces.splice(idx, 1);
+      puzzle.pieces.push(piece);
+    }
+    state.selectedPiece = piece;
     draggingPiece = piece;
     dragOffsetX = pos.x - piece._trayScreenX;
     dragOffsetY = pos.y - piece._trayScreenY;
     dragScreenX = piece._trayScreenX;
     dragScreenY = piece._trayScreenY;
     try { el.gameCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+  }
+
+  function isGrabZoneForSelected(piece, x, y) {
+    if (!piece || piece.placed || piece._trayScreenX === undefined) return false;
+    const scale = getLayout().scale;
+    const w = piece.drawW * scale, h = piece.drawH * scale;
+    return x >= piece._trayScreenX - 8 && x <= piece._trayScreenX + w + 8 &&
+           y >= piece._trayScreenY + h && y <= piece._trayScreenY + h + Math.max(24, h * 0.28);
+  }
+
+  el.gameCanvas.addEventListener("pointerdown", (e) => {
+    if (!puzzle || state.isPaused || !state.isRunning) return;
+    const pos = getCanvasLocalPos(e);
+    const layout = getLayout();
+    if (pos.y < layout.boardH) return;
+
+    pointerStartX = pos.x;
+    pointerStartY = pos.y;
+    pointerMoved = false;
+
+    if (state.selectedPiece && isGrabZoneForSelected(state.selectedPiece, pos.x, pos.y)) {
+      beginDraggingPiece(state.selectedPiece, pos, e);
+      return;
+    }
+
+    const piece = findPieceAt(pos.x, pos.y, layout);
+    if (!piece) {
+      state.selectedPiece = null;
+      return;
+    }
+    beginDraggingPiece(piece, pos, e);
   });
 
   el.gameCanvas.addEventListener("pointermove", (e) => {
     if (!draggingPiece) return;
     const pos = getCanvasLocalPos(e);
+    if (Math.hypot(pos.x - pointerStartX, pos.y - pointerStartY) > 8) pointerMoved = true;
     dragScreenX = pos.x - dragOffsetX;
     dragScreenY = pos.y - dragOffsetY;
   });
@@ -806,32 +928,48 @@
     if (!draggingPiece) return;
     const piece = draggingPiece;
     const layout = getLayout();
+    const moved = pointerMoved;
+    draggingPiece = null;
+
+    if (!moved) {
+      state.selectedPiece = piece;
+      sound.snap();
+      return;
+    }
 
     const correctX = layout.boardOffsetX + piece.originX * layout.scale;
     const correctY = layout.boardOffsetY + piece.originY * layout.scale;
     const threshold = Math.min(puzzle.srcW / puzzle.cols, puzzle.srcH / puzzle.rows) * layout.scale * 0.32;
-
-    const dx = dragScreenX - correctX;
-    const dy = dragScreenY - correctY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    draggingPiece = null;
+    const dist = Math.hypot(dragScreenX - correctX, dragScreenY - correctY);
 
     if (dist <= threshold) {
       piece.placed = true;
+      state.selectedPiece = null;
       sound.snap();
       placedCount++;
-      if (placedCount >= puzzle.pieces.length) {
-        setTimeout(goToClear, 250);
-      }
-    } else {
-      sound.miss();
-      // 何もしなければ、次の描画で自動的にトレイの元の位置(homeFrac)に戻る
+      if (placedCount >= puzzle.pieces.length) setTimeout(goToClear, 250);
+      return;
     }
+
+    const trayRect = { x:10, y:layout.trayY+10, w:Math.max(10,layout.w-20), h:Math.max(10,layout.trayH-20) };
+    const dw = piece.drawW * layout.scale, dh = piece.drawH * layout.scale;
+    const availW = Math.max(1, trayRect.w - dw), availH = Math.max(1, trayRect.h - dh);
+    const inTray = dragScreenX + dw >= trayRect.x && dragScreenX <= trayRect.x + trayRect.w &&
+                   dragScreenY + dh >= trayRect.y && dragScreenY <= trayRect.y + trayRect.h;
+    if (inTray) {
+      const clampedX = Math.max(trayRect.x, Math.min(dragScreenX, trayRect.x + availW));
+      const clampedY = Math.max(trayRect.y, Math.min(dragScreenY, trayRect.y + availH));
+      piece.homeFracX = (clampedX - trayRect.x) / availW;
+      piece.homeFracY = (clampedY - trayRect.y) / availH;
+      state.selectedPiece = piece;
+    } else {
+      state.selectedPiece = null;
+    }
+    sound.miss();
   }
 
   el.gameCanvas.addEventListener("pointerup", finishDrag);
-  el.gameCanvas.addEventListener("pointercancel", () => { draggingPiece = null; });
+  el.gameCanvas.addEventListener("pointercancel", () => { draggingPiece = null; pointerMoved = false; });
 
   /* ---- ゲーム開始 ---- */
 
@@ -844,11 +982,13 @@
     puzzle = null;
     placedCount = 0;
     draggingPiece = null;
+    state.selectedPiece = null;
     state.isRunning = false;
 
     const thisSession = ++gameSessionId;
     const thisLevel = state.selectedLevel;
 
+    updateGuideThumbnail();
     resizeGameCanvas();
     startGameLoop();
 
@@ -930,6 +1070,7 @@
     state.isRunning = false;
     hideModal(modals.pause);
     renderBestTimes();
+    el.guideThumbnail.classList.add("hidden");
     showScreen("title");
   });
 
@@ -941,11 +1082,35 @@
   });
   $("btn-clear-title").addEventListener("click", () => {
     renderBestTimes();
+    el.guideThumbnail.classList.add("hidden");
     showScreen("title");
   });
 
+  // 設定
+  $("btn-open-settings").addEventListener("click", openSettings);
+  $("btn-settings-close").addEventListener("click", () => hideModal(modals.settings));
+  el.settingGuidePicture.addEventListener("click", () => {
+    setBoolSetting(SETTINGS_KEYS.guidePicture, !getBoolSetting(SETTINGS_KEYS.guidePicture, true));
+    renderSettings(); renderGame();
+  });
+  el.settingGuideLine.addEventListener("click", () => {
+    setBoolSetting(SETTINGS_KEYS.guideLine, !getBoolSetting(SETTINGS_KEYS.guideLine, true));
+    renderSettings(); renderGame();
+  });
+  $("btn-reset-samples").addEventListener("click", () => {
+    setHiddenSamples([]);
+    renderImageSelectGrid();
+  });
+
+  el.guideThumbnail.addEventListener("click", () => {
+    if (!state.currentImage) return;
+    el.guidePreviewImage.src = state.currentImage.src;
+    showModal(modals.guidePreview);
+  });
+  $("btn-guide-preview-close").addEventListener("click", () => hideModal(modals.guidePreview));
+
   /* ============================================================
-     14. 画像アップロード関連
+     15. 画像アップロード関連
      ============================================================ */
 
   $("btn-open-upload").addEventListener("click", () => showModal(modals.uploadMenu));

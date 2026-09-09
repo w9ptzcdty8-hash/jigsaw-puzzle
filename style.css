@@ -17,16 +17,16 @@
 *{ box-sizing: border-box; margin:0; padding:0; -webkit-tap-highlight-color: transparent; user-select:none; -webkit-user-select:none; }
 
 html, body{
-  width:100%; height:100%; height:var(--app-height, 100%); overflow:hidden;
+  width:100%; height:100%; overflow:hidden; position:fixed; left:0; top:0;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font);
   touch-action: manipulation;
 }
 
-body{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
+body{ display:flex; flex-direction:column; }
 
-#app{ position:relative; width:100%; flex:1 1 auto; min-height:0; overflow:hidden; }
+#app{ position:relative; width:100%; height:100%; overflow:hidden; }
 
 .hidden{ display:none !important; }
 

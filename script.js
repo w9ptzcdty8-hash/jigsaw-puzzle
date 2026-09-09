@@ -711,6 +711,11 @@
     renderGame();
   }
   window.addEventListener("resize", resizeGameCanvas);
+  window.addEventListener("orientationchange", () => requestAnimationFrame(() => requestAnimationFrame(resizeGameCanvas)));
+  window.addEventListener("pageshow", () => requestAnimationFrame(() => requestAnimationFrame(resizeGameCanvas)));
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", () => requestAnimationFrame(resizeGameCanvas));
+  }
   window.addEventListener("orientationchange", () => setTimeout(resizeGameCanvas, 150));
 
   // 組み立てエリア／トレイエリアの寸法・拡大率を計算

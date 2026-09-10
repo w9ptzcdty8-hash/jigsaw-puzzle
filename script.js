@@ -1098,10 +1098,6 @@
     setBoolSetting(SETTINGS_KEYS.guideLine, !getBoolSetting(SETTINGS_KEYS.guideLine, true));
     renderSettings(); renderGame();
   });
-  $("btn-reset-samples").addEventListener("click", () => {
-    setHiddenSamples([]);
-    renderImageSelectGrid();
-  });
 
   el.guideThumbnail.addEventListener("click", () => {
     if (!state.currentImage) return;

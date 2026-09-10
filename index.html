@@ -147,5 +147,47 @@
 </div>
 
 <script src="script.js"></script>
+<script>
+/*
+ * ゲーム領域の実サイズを監視し、ブラウザのviewport再計算後も
+ * canvasの内部解像度を#game-stageに同期させる。
+ * script.jsのゲームロジックには触れず、レイアウト同期だけを担当する。
+ */
+(function () {
+  "use strict";
+
+  function syncGameCanvas() {
+    const stage = document.getElementById("game-stage");
+    const canvas = document.getElementById("game-canvas");
+    if (!stage || !canvas || stage.clientWidth <= 0 || stage.clientHeight <= 0) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.floor(stage.clientWidth * dpr));
+    const height = Math.max(1, Math.floor(stage.clientHeight * dpr));
+
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+
+  const stage = document.getElementById("game-stage");
+  if (!stage || typeof ResizeObserver === "undefined") return;
+
+  const observer = new ResizeObserver(() => {
+    requestAnimationFrame(syncGameCanvas);
+  });
+  observer.observe(stage);
+
+  window.addEventListener("pageshow", () => {
+    requestAnimationFrame(syncGameCanvas);
+  });
+  window.addEventListener("load", () => {
+    requestAnimationFrame(syncGameCanvas);
+  });
+})();
+</script>
 </body>
 </html>

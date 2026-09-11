@@ -6,7 +6,7 @@
   const state={selectedLevel:"EASY",currentImage:null,selectedPiece:null,startTimestamp:0,elapsedBeforePause:0,timerHandle:null,isPaused:false,isRunning:false};
   const $=id=>document.getElementById(id);
   const screens={title:$("screen-title"),level:$("screen-level"),imageselect:$("screen-imageselect"),game:$("screen-game"),clear:$("screen-clear")};
-  const modals={pause:$("modal-pause"),resume:$("modal-resume"),uploadMenu:$("modal-upload-menu"),uploadList:$("modal-upload-list"),settings:$("modal-settings"),guidePreview:$("modal-guide-preview")};
+  const modals={pause:$("modal-pause"),resume:$("modal-resume"),uploadList:$("modal-upload-list"),settings:$("modal-settings"),guidePreview:$("modal-guide-preview")};
   const el={bestTimesList:$("best-times-list"),levelGrid:$("level-grid"),imageSelectGrid:$("image-select-grid"),uploadedGrid:$("uploaded-grid"),uploadedEmpty:$("uploaded-empty"),gameLevelTag:$("game-level-tag"),gameTimer:$("game-timer"),gameCanvas:$("game-canvas"),clearTime:$("clear-time"),clearBestTag:$("clear-best-tag"),fileInput:$("file-input"),guideThumbnail:$("guide-thumbnail"),guideThumbnailImage:$("guide-thumbnail-image"),guidePreviewImage:$("guide-preview-image"),settingGuidePicture:$("setting-guide-picture"),settingGuideLine:$("setting-guide-line"),settingCompletionImage:$("setting-completion-image")};
   const ctx=el.gameCanvas.getContext("2d");
   const app={LEVELS,LEVEL_ORDER,SAMPLE_IMAGES,state,screens,modals,el,ctx};
@@ -37,11 +37,9 @@
   $("setting-sample-images").addEventListener("click",()=>{const toggle=$("setting-sample-images");if(toggle.disabled)return;app.settings.setSampleEnabled(!app.settings.isSampleEnabled());app.settings.renderSettings(app.imageManager.getUploadedCount());});
   el.guideThumbnail.addEventListener("click",()=>{if(!state.currentImage)return;el.guidePreviewImage.src=state.currentImage.src;app.ui.showModal(modals.guidePreview);});
   $("btn-guide-preview-close").addEventListener("click",()=>app.ui.hideModal(modals.guidePreview));
-  $("btn-open-upload").addEventListener("click",()=>app.ui.showModal(modals.uploadMenu));
-  $("btn-upload-menu-close").addEventListener("click",()=>app.ui.hideModal(modals.uploadMenu));
-  $("btn-upload-new").addEventListener("click",()=>el.fileInput.click());
-  el.fileInput.addEventListener("change",e=>{const file=e.target.files&&e.target.files[0];app.imageManager.handleFileSelected(file);e.target.value="";app.ui.hideModal(modals.uploadMenu);});
-  $("btn-upload-list").addEventListener("click",()=>{app.ui.hideModal(modals.uploadMenu);app.imageManager.renderUploadedGrid();app.ui.showModal(modals.uploadList);});
+  $("btn-open-upload").addEventListener("click",()=>el.fileInput.click());
+  el.fileInput.addEventListener("change",e=>{const file=e.target.files&&e.target.files[0];app.imageManager.handleFileSelected(file);e.target.value="";});
+  $("btn-upload-list").addEventListener("click",()=>{app.imageManager.renderUploadedGrid();app.ui.showModal(modals.uploadList);});
   $("btn-uploaded-close").addEventListener("click",()=>app.ui.hideModal(modals.uploadList));
   app.bestTimes.renderBestTimes();app.settings.renderSettings(app.imageManager.getUploadedCount());app.imageManager.loadUploadedImagesFromDB();app.ui.showScreen("title");
 })();

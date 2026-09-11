@@ -7,7 +7,7 @@
   const $=id=>document.getElementById(id);
   const screens={title:$("screen-title"),level:$("screen-level"),imageselect:$("screen-imageselect"),game:$("screen-game"),clear:$("screen-clear")};
   const modals={pause:$("modal-pause"),resume:$("modal-resume"),uploadMenu:$("modal-upload-menu"),uploadList:$("modal-upload-list"),settings:$("modal-settings"),guidePreview:$("modal-guide-preview")};
-  const el={bestTimesList:$("best-times-list"),levelGrid:$("level-grid"),imageSelectGrid:$("image-select-grid"),uploadedGrid:$("uploaded-grid"),uploadedEmpty:$("uploaded-empty"),gameLevelTag:$("game-level-tag"),gameTimer:$("game-timer"),gameCanvas:$("game-canvas"),clearTime:$("clear-time"),clearBestTag:$("clear-best-tag"),fileInput:$("file-input"),guideThumbnail:$("guide-thumbnail"),guideThumbnailImage:$("guide-thumbnail-image"),guidePreviewImage:$("guide-preview-image"),settingGuidePicture:$("setting-guide-picture"),settingGuideLine:$("setting-guide-line")};
+  const el={bestTimesList:$("best-times-list"),levelGrid:$("level-grid"),imageSelectGrid:$("image-select-grid"),uploadedGrid:$("uploaded-grid"),uploadedEmpty:$("uploaded-empty"),gameLevelTag:$("game-level-tag"),gameTimer:$("game-timer"),gameCanvas:$("game-canvas"),clearTime:$("clear-time"),clearBestTag:$("clear-best-tag"),fileInput:$("file-input"),guideThumbnail:$("guide-thumbnail"),guideThumbnailImage:$("guide-thumbnail-image"),guidePreviewImage:$("guide-preview-image"),settingGuidePicture:$("setting-guide-picture"),settingGuideLine:$("setting-guide-line"),settingCompletionImage:$("setting-completion-image")};
   const ctx=el.gameCanvas.getContext("2d");
   const app={LEVELS,LEVEL_ORDER,SAMPLE_IMAGES,state,screens,modals,el,ctx};
   window.JigsawModules.bestTimes(app);window.JigsawModules.timer(app);window.JigsawModules.ui(app);window.JigsawModules.settings(app);window.JigsawModules.imageManager(app);window.JigsawModules.puzzle(app);
@@ -16,6 +16,8 @@
   function startGame(resumeData){app.puzzle.startGame(resumeData);}
   function goToClear(){app.timer.stopTimer();app.puzzle.stopGameLoop();state.isRunning=false;app.puzzle.clearResumeState();const seconds=app.timer.currentElapsedSeconds(),isNewRecord=app.bestTimes.trySaveBestTime(state.selectedLevel,seconds);el.clearTime.textContent=app.bestTimes.formatTime(seconds);el.clearBestTag.textContent=isNewRecord?"🎉 ベストタイム更新！":"";app.ui.showScreen("clear");}
   app.startGame=startGame;app.goToClear=goToClear;
+
+  function updateCompletionImageVisibility(){el.guideThumbnail.classList.toggle("hidden",!app.settings.getBoolSetting(app.settings.keys.completionImage,true));}
 
   function openLevelOrResume(){
     app.imageManager.loadUploadedImagesFromDB().then(()=>{
@@ -66,6 +68,7 @@
   $("btn-settings-close").addEventListener("click",()=>app.ui.hideModal(modals.settings));
   el.settingGuidePicture.addEventListener("click",()=>{const key=app.settings.keys.guidePicture;app.settings.setBoolSetting(key,!app.settings.getBoolSetting(key,true));app.settings.renderSettings(app.imageManager.getUploadedCount());app.puzzle.renderGame();});
   el.settingGuideLine.addEventListener("click",()=>{const key=app.settings.keys.guideLine;app.settings.setBoolSetting(key,!app.settings.getBoolSetting(key,true));app.settings.renderSettings(app.imageManager.getUploadedCount());app.puzzle.renderGame();});
+  el.settingCompletionImage.addEventListener("click",()=>{const key=app.settings.keys.completionImage;app.settings.setBoolSetting(key,!app.settings.getBoolSetting(key,true));app.settings.renderSettings(app.imageManager.getUploadedCount());updateCompletionImageVisibility();});
   $("setting-sample-images").addEventListener("click",()=>{const toggle=$("setting-sample-images");if(toggle.disabled)return;app.settings.setSampleEnabled(!app.settings.isSampleEnabled());app.settings.renderSettings(app.imageManager.getUploadedCount());});
   el.guideThumbnail.addEventListener("click",()=>{if(!state.currentImage)return;el.guidePreviewImage.src=state.currentImage.src;app.ui.showModal(modals.guidePreview);});
   $("btn-guide-preview-close").addEventListener("click",()=>app.ui.hideModal(modals.guidePreview));

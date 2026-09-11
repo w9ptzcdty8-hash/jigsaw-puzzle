@@ -1,132 +1,23 @@
 (function () {
   "use strict";
-
-  const DB_NAME = "jigsaw_puzzle_db";
-  const DB_VERSION = 1;
-  const DB_STORE = "images";
-
-  function getUploadedCountFromDB() {
-    return new Promise((resolve) => {
-      if (!window.indexedDB) {
-        resolve(document.querySelectorAll("#uploaded-grid .image-thumb").length);
-        return;
-      }
-      let settled = false;
-      const fallback = () => {
-        if (!settled) {
-          settled = true;
-          resolve(document.querySelectorAll("#uploaded-grid .image-thumb").length);
-        }
-      };
-      try {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onerror = fallback;
-        req.onupgradeneeded = () => {};
-        req.onsuccess = (e) => {
-          try {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains(DB_STORE)) {
-              db.close();
-              fallback();
-              return;
-            }
-            const tx = db.transaction(DB_STORE, "readonly");
-            const getReq = tx.objectStore(DB_STORE).getAll();
-            getReq.onerror = fallback;
-            getReq.onsuccess = () => {
-              if (!settled) {
-                settled = true;
-                resolve((getReq.result || []).length);
-              }
-            };
-          } catch (err) {
-            fallback();
-          }
-        };
-      } catch (err) {
-        fallback();
-      }
-    });
-  }
-
-  function refreshSampleToggle() {
-    getUploadedCountFromDB().then((uploadedCount) => {
-      if (uploadedCount === 0 && !window.JigsawSettings.isSampleEnabled()) {
-        window.JigsawSettings.setSampleEnabled(true);
-      }
-      window.JigsawSettings.refreshSampleToggle(uploadedCount);
-    });
-  }
-
-  function removeSelectionDeleteButtons() {
-    document.querySelectorAll("#image-select-grid .sample-delete, #image-select-grid .thumb-delete").forEach((button) => button.remove());
-  }
-
-  let previousUploadedDomCount = 0;
-  let deletionAlertShown = false;
-
-  function watchUploadedGrid() {
-    const grid = document.getElementById("uploaded-grid");
-    if (!grid) return;
-    const observer = new MutationObserver(() => {
-      const count = grid.querySelectorAll(".image-thumb").length;
-      if (previousUploadedDomCount > 0 && count === 0 && !window.JigsawSettings.isSampleEnabled() && !deletionAlertShown) {
-        deletionAlertShown = true;
-        window.JigsawSettings.setSampleEnabled(true);
-        alert("使用する画像が無くなったため、サンプル画像を有効にします");
-      }
-      if (count > 0) deletionAlertShown = false;
-      previousUploadedDomCount = count;
-      refreshSampleToggle();
-    });
-    observer.observe(grid, { childList: true, subtree: true });
-    previousUploadedDomCount = grid.querySelectorAll(".image-thumb").length;
-  }
-
-  function watchImageSelection() {
-    const grid = document.getElementById("image-select-grid");
-    if (!grid) return;
-    const observer = new MutationObserver(removeSelectionDeleteButtons);
-    observer.observe(grid, { childList: true, subtree: true });
-    removeSelectionDeleteButtons();
-  }
-
-  function install() {
-    const fileInput = document.getElementById("file-input");
-    const randomButton = document.getElementById("btn-play-random");
-    const chooseButton = document.getElementById("btn-play-choose");
-
-    if (fileInput) {
-      fileInput.addEventListener("change", () => setTimeout(refreshSampleToggle, 100));
-    }
-
-    const guardNoImages = () => {
-      getUploadedCountFromDB().then((uploadedCount) => {
-        const samplesEnabled = window.JigsawSettings.isSampleEnabled();
-        const hidden = window.JigsawSettings.getHiddenSamples();
-        const visibleSamples = samplesEnabled
-          ? window.JigsawSettings.sampleIds.filter((id) => !hidden.includes(id)).length
-          : 0;
-        if (uploadedCount === 0 && (!samplesEnabled || visibleSamples > 0)) {
-          window.JigsawSettings.setSampleEnabled(true);
-          if (!samplesEnabled) {
-            alert("使用する画像が無くなったため、サンプル画像を有効にします");
-          }
-        }
-      });
-    };
-
-    if (randomButton) randomButton.addEventListener("click", guardNoImages, true);
-    if (chooseButton) chooseButton.addEventListener("click", guardNoImages, true);
-
-    watchUploadedGrid();
-    watchImageSelection();
-    refreshSampleToggle();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", install, { once: true });
-  } else {
-    install();
-  }
+  window.JigsawModules=window.JigsawModules||{};
+  window.JigsawModules.imageManager=function(app){
+    const DB_NAME="jigsaw_puzzle_db",DB_VERSION=1,DB_STORE="images",UPLOAD_MAX_DIM=800,UPLOAD_JPEG_QUALITY=0.85;
+    let dbPromise=null,uploadedImages=[];
+    function openDB(){if(dbPromise)return dbPromise;dbPromise=new Promise((resolve,reject)=>{if(!window.indexedDB){reject(new Error("このブラウザはIndexedDBに対応していません"));return;}const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=(e)=>{const db=e.target.result;if(!db.objectStoreNames.contains(DB_STORE))db.createObjectStore(DB_STORE,{keyPath:"id"});};req.onsuccess=(e)=>resolve(e.target.result);req.onerror=(e)=>reject(e.target.error);});return dbPromise;}
+    function dbPutImage(record){return openDB().then((db)=>new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,"readwrite");tx.objectStore(DB_STORE).put(record);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);}));}
+    function dbGetAllImages(){return openDB().then((db)=>new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,"readonly"),req=tx.objectStore(DB_STORE).getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);}));}
+    function dbDeleteImage(id){return openDB().then((db)=>new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,"readwrite");tx.objectStore(DB_STORE).delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);}));}
+    function getUploadedCount(){return uploadedImages.length;}
+    function loadUploadedImagesFromDB(){return dbGetAllImages().then((records)=>{records.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));uploadedImages=records;renderUploadedGrid();refreshSampleToggle();}).catch((err)=>{console.warn("アップロード画像の読み込みに失敗しました",err);uploadedImages=[];renderUploadedGrid();refreshSampleToggle();});}
+    function resizeImageFile(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(reader.error||new Error("ファイルの読み込みに失敗しました"));reader.onload=(e)=>{const img=new Image();img.onerror=()=>reject(new Error("画像として読み込めませんでした"));img.onload=()=>{let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;if(Math.max(w,h)>UPLOAD_MAX_DIM){const s=UPLOAD_MAX_DIM/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;const cctx=canvas.getContext("2d");cctx.fillStyle="#ffffff";cctx.fillRect(0,0,w,h);cctx.drawImage(img,0,0,w,h);resolve(canvas.toDataURL("image/jpeg",UPLOAD_JPEG_QUALITY));};img.src=e.target.result;};reader.readAsDataURL(file);});}
+    function refreshSampleToggle(){app.settings.renderSettings(uploadedImages.length);if(uploadedImages.length===0&&!app.settings.isSampleEnabled()){app.settings.setSampleEnabled(true);alert("使用する画像が無くなったため、サンプル画像を有効にします");app.settings.renderSettings(0);}}
+    function renderUploadedGrid(){app.el.uploadedGrid.innerHTML="";if(uploadedImages.length===0){app.el.uploadedEmpty.classList.remove("hidden");return;}app.el.uploadedEmpty.classList.add("hidden");uploadedImages.forEach((img)=>{const cell=document.createElement("div");cell.className="image-thumb";cell.innerHTML=`<img src="${img.src}" alt="${img.name}"><button class="thumb-delete" aria-label="削除">✕</button>`;cell.querySelector(".thumb-delete").addEventListener("click",(e)=>{e.stopPropagation();uploadedImages=uploadedImages.filter((u)=>u.id!==img.id);renderUploadedGrid();dbDeleteImage(img.id).catch((err)=>console.warn("削除に失敗しました",err));refreshSampleToggle();});app.el.uploadedGrid.appendChild(cell);});}
+    function handleFileSelected(file){if(!file)return;if(!file.type||file.type.indexOf("image/")!==0){alert("画像ファイルを選んでください");return;}resizeImageFile(file).then((dataUrl)=>{const record={id:"upload_"+Date.now()+"_"+Math.floor(Math.random()*1e6),src:dataUrl,name:"マイ画像"+(uploadedImages.length+1),createdAt:Date.now()};uploadedImages.push(record);renderUploadedGrid();dbPutImage(record).catch((err)=>console.warn("画像を保存できませんでした（今回のセッション内でのみ利用可能です）",err));refreshSampleToggle();}).catch((err)=>{console.error(err);alert("画像の読み込みに失敗しました");});}
+    function getImagePool(){const samples=app.SAMPLE_IMAGES.filter((img)=>app.settings.isSampleEnabled()&&app.settings.isSampleVisible(img.id));return[...samples,...uploadedImages];}
+    function pickRandomImage(){const pool=getImagePool();return pool.length?pool[Math.floor(Math.random()*pool.length)]:null;}
+    function renderImageSelectGrid(){app.el.imageSelectGrid.innerHTML="";getImagePool().forEach((img)=>{const cell=document.createElement("div");cell.className="image-thumb";cell.innerHTML=`<img src="${img.src}" alt="${img.name}"><div class="thumb-label">${img.name}</div>`;cell.addEventListener("click",()=>{app.state.currentImage=img;app.startGame();});app.el.imageSelectGrid.appendChild(cell);});}
+    function guardNoImages(){if(getImagePool().length===0){app.settings.setSampleEnabled(true);app.settings.renderSettings(getUploadedCount());}}
+    app.imageManager={getUploadedCount,loadUploadedImagesFromDB,handleFileSelected,renderUploadedGrid,getImagePool,pickRandomImage,renderImageSelectGrid,guardNoImages,refreshSampleToggle};
+  };
 })();

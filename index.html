@@ -8,7 +8,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="screen-title" class="screen"><div class="title-wrap"><h1 class="logo">🧩 ジグソーパズル</h1><p class="tagline">すきな画像でパズルにちょうせん！</p><button id="btn-start" class="btn btn-primary btn-lg">はじめる</button><button id="btn-open-upload" class="btn btn-secondary">画像設定</button><button id="btn-open-settings" class="btn btn-ghost">⚙️ 設定</button><div class="best-times-box"><div class="best-times-title">ベストタイム</div><div class="best-times-list" id="best-times-list"></div></div></div></div>
+  <div id="screen-title" class="screen"><div class="title-wrap"><h1 class="logo">🧩 ジグソーパズル</h1><p class="tagline">すきな画像でパズルにちょうせん！</p><button id="btn-start" class="btn btn-primary btn-lg">はじめる</button><button id="btn-open-upload" class="btn btn-secondary">画像設定</button><button id="btn-open-settings" class="btn btn-ghost">⚙️ 設定</button><div class="best-times-box"><div class="best-times-title">ベストタイム</div><div class="best-times-list" id="best-times-list"></div></div><a href="https://mrs-games.pages.dev/" class="mrs-games-link" target="_blank" rel="noopener">MRS GAMES</a></div></div>
   <div id="screen-level" class="screen hidden"><div class="panel"><h2 class="panel-title">レベルをえらんでね</h2><div class="level-grid" id="level-grid"></div><div class="mode-buttons"><button id="btn-play-random" class="btn btn-primary btn-lg">🎲 ランダムであそぶ</button><button id="btn-play-choose" class="btn btn-secondary">🖼️ 画像をえらんであそぶ</button></div><button id="btn-level-back" class="btn btn-ghost">タイトルへもどる</button></div></div>
   <div id="screen-imageselect" class="screen hidden"><div class="panel panel-wide"><h2 class="panel-title">画像をえらんでね</h2><div class="image-grid" id="image-select-grid"></div><button id="btn-imageselect-back" class="btn btn-ghost">レベル選択へもどる</button></div></div>
   <div id="screen-game" class="screen hidden screen-game"><div id="game-topbar"><div id="game-level-tag">EASY</div><div id="game-timer">00:00</div><button id="btn-pause" class="icon-btn" aria-label="ポーズ">⏸</button></div><div id="game-stage"><canvas id="game-canvas"></canvas><button id="guide-thumbnail" class="guide-thumbnail hidden" aria-label="完成図を拡大"><img id="guide-thumbnail-image" alt="完成図"></button></div></div>
@@ -21,6 +21,15 @@
   <div id="modal-upload-list" class="modal hidden"><div class="modal-card modal-card-wide"><h2 class="modal-title">追加済みの画像</h2><div class="uploaded-grid" id="uploaded-grid"></div><div class="uploaded-empty hidden" id="uploaded-empty">まだ画像がありません</div><button id="btn-uploaded-close" class="btn btn-ghost">とじる</button></div></div>
   <input type="file" id="file-input" accept="image/*" hidden>
 </div>
+
+<div class="ad-banner">
+  <div style="max-width: 100%;">
+    <!-- admax -->
+    <script src="https://adm.shinobi.jp/s/8a495d941206bf0c34aff9559f8d2cea"></script>
+    <!-- admax -->
+  </div>
+</div>
+
 <script src="ui.js"></script>
 <script src="best-times.js"></script>
 <script src="timer.js"></script>

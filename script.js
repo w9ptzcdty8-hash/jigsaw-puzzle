@@ -27,6 +27,7 @@
   $("btn-pause-title").addEventListener("click",()=>{if(!app.puzzle.saveResumeState())return;app.puzzle.stopGame();app.ui.hideModal(modals.pause);app.bestTimes.renderBestTimes();el.guideThumbnail.classList.add("hidden");app.ui.showScreen("title");});
   $("btn-resume-yes").addEventListener("click",()=>{const resumeData=app.puzzle.getResumeState();app.ui.hideModal(modals.resume);if(!resumeData){renderLevelGrid();app.ui.showScreen("level");return;}const image=app.imageManager.getImageById(resumeData.imageId);if(!image){app.puzzle.clearResumeState();alert("中断したパズルの画像が削除されました。はじめから開始します。");app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");return;}state.selectedLevel=resumeData.level;state.currentImage=image;startGame(resumeData);});
   $("btn-resume-no").addEventListener("click",()=>{app.puzzle.clearResumeState();app.ui.hideModal(modals.resume);app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");});
+  modals.resume.addEventListener("click",e=>{if(e.target===modals.resume)app.ui.hideModal(modals.resume);});
   $("btn-clear-retry").addEventListener("click",()=>{app.puzzle.clearResumeState();state.currentImage=app.imageManager.pickRandomImage();if(state.currentImage)startGame();});
   $("btn-clear-title").addEventListener("click",()=>{app.puzzle.clearResumeState();app.bestTimes.renderBestTimes();el.guideThumbnail.classList.add("hidden");app.ui.showScreen("title");});
   $("btn-open-settings").addEventListener("click",()=>app.settings.openSettings());

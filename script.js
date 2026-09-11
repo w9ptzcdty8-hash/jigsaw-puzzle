@@ -21,8 +21,20 @@
     app.imageManager.loadUploadedImagesFromDB().then(()=>{
       const resumeData=app.puzzle.getResumeState();
       if(!resumeData){app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");return;}
+      if(!app.imageManager.getImageById(resumeData.imageId)){
+        app.puzzle.clearResumeState();
+        alert("中断したパズルの画像が削除されました。はじめから開始します。");
+        app.imageManager.guardNoImages();
+        renderLevelGrid();
+        app.ui.showScreen("level");
+        return;
+      }
       app.ui.showModal(modals.resume);
-    }).catch(()=>{const resumeData=app.puzzle.getResumeState();if(resumeData)app.ui.showModal(modals.resume);else{app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");}});
+    }).catch(()=>{
+      const resumeData=app.puzzle.getResumeState();
+      if(resumeData)app.ui.showModal(modals.resume);
+      else{app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");}
+    });
   }
 
   $("btn-start").addEventListener("click",openLevelOrResume);

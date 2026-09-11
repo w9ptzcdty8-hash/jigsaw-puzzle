@@ -6,18 +6,26 @@
   const state={selectedLevel:"EASY",currentImage:null,selectedPiece:null,startTimestamp:0,elapsedBeforePause:0,timerHandle:null,isPaused:false,isRunning:false};
   const $=id=>document.getElementById(id);
   const screens={title:$("screen-title"),level:$("screen-level"),imageselect:$("screen-imageselect"),game:$("screen-game"),clear:$("screen-clear")};
-  const modals={pause:$("modal-pause"),uploadMenu:$("modal-upload-menu"),uploadList:$("modal-upload-list"),settings:$("modal-settings"),guidePreview:$("modal-guide-preview")};
+  const modals={pause:$("modal-pause"),resume:$("modal-resume"),uploadMenu:$("modal-upload-menu"),uploadList:$("modal-upload-list"),settings:$("modal-settings"),guidePreview:$("modal-guide-preview")};
   const el={bestTimesList:$("best-times-list"),levelGrid:$("level-grid"),imageSelectGrid:$("image-select-grid"),uploadedGrid:$("uploaded-grid"),uploadedEmpty:$("uploaded-empty"),gameLevelTag:$("game-level-tag"),gameTimer:$("game-timer"),gameCanvas:$("game-canvas"),clearTime:$("clear-time"),clearBestTag:$("clear-best-tag"),fileInput:$("file-input"),guideThumbnail:$("guide-thumbnail"),guideThumbnailImage:$("guide-thumbnail-image"),guidePreviewImage:$("guide-preview-image"),settingGuidePicture:$("setting-guide-picture"),settingGuideLine:$("setting-guide-line")};
   const ctx=el.gameCanvas.getContext("2d");
   const app={LEVELS,LEVEL_ORDER,SAMPLE_IMAGES,state,screens,modals,el,ctx};
   window.JigsawModules.bestTimes(app);window.JigsawModules.timer(app);window.JigsawModules.ui(app);window.JigsawModules.settings(app);window.JigsawModules.imageManager(app);window.JigsawModules.puzzle(app);
 
   function renderLevelGrid(){el.levelGrid.innerHTML="";LEVEL_ORDER.forEach(lvl=>{const cfg=LEVELS[lvl],btn=document.createElement("button");btn.className="level-btn"+(lvl===state.selectedLevel?" active":"");btn.innerHTML=`<span class="lvl-name">${cfg.label}</span><span class="lvl-pieces">${cfg.pieces}ピース</span>`;btn.addEventListener("click",()=>{state.selectedLevel=lvl;renderLevelGrid();});el.levelGrid.appendChild(btn);});}
-  function startGame(){app.puzzle.startGame();}
-  function goToClear(){app.timer.stopTimer();app.puzzle.stopGameLoop();state.isRunning=false;const seconds=app.timer.currentElapsedSeconds(),isNewRecord=app.bestTimes.trySaveBestTime(state.selectedLevel,seconds);el.clearTime.textContent=app.bestTimes.formatTime(seconds);el.clearBestTag.textContent=isNewRecord?"🎉 ベストタイム更新！":"";app.ui.showScreen("clear");}
+  function startGame(resumeData){app.puzzle.startGame(resumeData);}
+  function goToClear(){app.timer.stopTimer();app.puzzle.stopGameLoop();state.isRunning=false;app.puzzle.clearResumeState();const seconds=app.timer.currentElapsedSeconds(),isNewRecord=app.bestTimes.trySaveBestTime(state.selectedLevel,seconds);el.clearTime.textContent=app.bestTimes.formatTime(seconds);el.clearBestTag.textContent=isNewRecord?"🎉 ベストタイム更新！":"";app.ui.showScreen("clear");}
   app.startGame=startGame;app.goToClear=goToClear;
 
-  $("btn-start").addEventListener("click",()=>{app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");});
+  function openLevelOrResume(){
+    app.imageManager.loadUploadedImagesFromDB().then(()=>{
+      const resumeData=app.puzzle.getResumeState();
+      if(!resumeData){app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");return;}
+      app.ui.showModal(modals.resume);
+    }).catch(()=>{const resumeData=app.puzzle.getResumeState();if(resumeData)app.ui.showModal(modals.resume);else{app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");}});
+  }
+
+  $("btn-start").addEventListener("click",openLevelOrResume);
   $("btn-level-back").addEventListener("click",()=>{app.bestTimes.renderBestTimes();app.ui.showScreen("title");});
   $("btn-play-random").addEventListener("click",()=>{app.imageManager.guardNoImages();state.currentImage=app.imageManager.pickRandomImage();if(state.currentImage)startGame();});
   $("btn-play-choose").addEventListener("click",()=>{app.imageManager.guardNoImages();app.imageManager.renderImageSelectGrid();app.ui.showScreen("imageselect");});
@@ -25,10 +33,22 @@
 
   $("btn-pause").addEventListener("click",()=>{if(!state.isRunning)return;app.timer.pauseTimer();app.ui.showModal(modals.pause);});
   $("btn-resume").addEventListener("click",()=>{app.timer.resumeTimer();app.ui.hideModal(modals.pause);});
-  $("btn-pause-title").addEventListener("click",()=>{app.puzzle.stopGame();app.ui.hideModal(modals.pause);app.bestTimes.renderBestTimes();el.guideThumbnail.classList.add("hidden");app.ui.showScreen("title");});
+  $("btn-pause-title").addEventListener("click",()=>{if(!app.puzzle.saveResumeState())return;app.puzzle.stopGame();app.ui.hideModal(modals.pause);app.bestTimes.renderBestTimes();el.guideThumbnail.classList.add("hidden");app.ui.showScreen("title");});
 
-  $("btn-clear-retry").addEventListener("click",()=>{state.currentImage=app.imageManager.pickRandomImage();if(state.currentImage)startGame();});
-  $("btn-clear-title").addEventListener("click",()=>{app.bestTimes.renderBestTimes();el.guideThumbnail.classList.add("hidden");app.ui.showScreen("title");});
+  $("btn-resume-yes").addEventListener("click",()=>{
+    const resumeData=app.puzzle.getResumeState();
+    app.ui.hideModal(modals.resume);
+    if(!resumeData){renderLevelGrid();app.ui.showScreen("level");return;}
+    const image=app.imageManager.getImageById(resumeData.imageId);
+    if(!image){app.puzzle.clearResumeState();alert("中断したパズルの画像が削除されました。はじめから開始します。");app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");return;}
+    state.selectedLevel=resumeData.level;
+    state.currentImage=image;
+    startGame(resumeData);
+  });
+  $("btn-resume-no").addEventListener("click",()=>{app.puzzle.clearResumeState();app.ui.hideModal(modals.resume);app.imageManager.guardNoImages();renderLevelGrid();app.ui.showScreen("level");});
+
+  $("btn-clear-retry").addEventListener("click",()=>{app.puzzle.clearResumeState();state.currentImage=app.imageManager.pickRandomImage();if(state.currentImage)startGame();});
+  $("btn-clear-title").addEventListener("click",()=>{app.puzzle.clearResumeState();app.bestTimes.renderBestTimes();el.guideThumbnail.classList.add("hidden");app.ui.showScreen("title");});
 
   $("btn-open-settings").addEventListener("click",()=>app.settings.openSettings());
   $("btn-settings-close").addEventListener("click",()=>app.ui.hideModal(modals.settings));
